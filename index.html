@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mutual Stakeholding Visualization</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+  </head>
+  <body>
+    <script>
+      const svgGroups = {};
+
+      const networks = {
+        DanceParty: {
+          id: "DanceParty",
+          // should transition to asset/liabilities and denomination as main categories.
+          stakes: [
+            { id: "Luminations", value: 20, denomination: "DanceParty" },
+            { id: "Gardening", value: 30, denomination: "DanceParty" },
+            { id: "Diagrams", value: 30, denomination: "DanceParty" },
+            { id: "Pizza", value: 20, denomination: "DanceParty" },
+          ],
+          style: {
+            color: "#4caf50",
+          },
+          dividends: [
+            { id: "Book NFT", style: { color: "#3f51b5", fontSize: "12px" } },
+            { id: "swag", style: { color: "#9c27b0", fontSize: "12px" } },
+            { id: "Gear", style: { color: "#e91e63", fontSize: "12px" } },
+          ],
+        },
+        Luminations: {
+          id: "Luminations",
+          stakes: [
+            { id: "DanceParty", value: 40, denomination: "Luminations" },
+            { id: "Diagrams", value: 60, denomination: "Luminations" },
+          ],
+          style: {
+            color: "#ff9800",
+          },
+          dividends: [
+            { id: "Games", style: { color: "#f44336", fontSize: "12px" } },
+            { id: "Play", style: { color: "#e91e63", fontSize: "12px" } },
+          ],
+        },
+        Gardening: {
+          id: "Gardening",
+          stakes: [
+            { id: "DanceParty", value: 70, denomination: "Gardening" },
+            { id: "Luminations", value: 30, denomination: "Gardening" },
+          ],
+          style: {
+            color: "#2196f3",
+          },
+          dividends: [
+            { id: "Rights", style: { color: "#4caf50", fontSize: "12px" } },
+            {
+              id: "Obligations",
+              style: { color: "#ffeb3b", fontSize: "12px" },
+            },
+          ],
+        },
+        Diagrams: {
+          id: "Diagrams",
+          stakes: [
+            { id: "DanceParty", value: 60, denomination: "Diagrams" },
+            { id: "Luminations", value: 30, denomination: "Diagrams" },
+          ],
+          style: {
+            color: "#8824ff",
+          },
+          dividends: [
+            { id: "Rights", style: { color: "#4caf50", fontSize: "12px" } },
+            {
+              id: "Obligations",
+              style: { color: "#ffeb3b", fontSize: "12px" },
+            },
+          ],
+        },
+        Pizza: {
+          id: "Pizza",
+          stakes: [
+            { id: "DanceParty", value: 70, denomination: "Diagrams" },
+            { id: "Luminations", value: 30, denomination: "Diagrams" },
+          ],
+          style: {
+            color: "#fff624",
+          },
+          dividends: [
+            { id: "Rights", style: { color: "#4caf50", fontSize: "12px" } },
+            {
+              id: "Obligations",
+              style: { color: "#ffeb3b", fontSize: "12px" },
+            },
+          ],
+        },
+      };
+
+      function generateGraphData() {
+        return {
+          nodes: Object.keys(networks).map((key) => ({
+            id: key,
+            style: networks[key].style,
+          })),
+          links: Object.keys(networks).flatMap((key) =>
+            networks[key].stakes
+              .filter((stake) => stake.value !== 0)
+              .map((stake) => ({
+                source: key,
+                target: stake.id,
+                value: stake.value,
+                denomination: stake.denomination,
+              }))
+          ),
+        };
+      }
+
+      /*
+ ▐ ▄ ▄▄▄ .▄▄▄▄▄▄▄▌ ▐ ▄▌      ▄▄▄  ▄ •▄
+•█▌▐█▀▄.▀·•██  ██· █▌▐█▪     ▀▄ █·█▌▄▌▪
+▐█▐▐▌▐▀▀▪▄ ▐█.▪██▪▐█▐▐▌ ▄█▀▄ ▐▀▀▄ ▐▀▀▄·
+██▐█▌▐█▄▄▌ ▐█▌·▐█▌██▐█▌▐█▌.▐▌▐█•█▌▐█.█▌
+▀▀ █▪ ▀▀▀  ▀▀▀  ▀▀▀▀ ▀▪ ▀█▄▀▪.▀  ▀·▀  ▀
+*/
+
+      function addNetwork(networkId) {
+        networks[networkId] = {
+          id: networkId,
+          stakes: [],
+          style: {},
+          dividends: [],
+          svgGroup: undefined,
+        };
+      }
+
+      function addStake(networkId, denomination, quantity) {
+        networks[networkId].stakes.push({
+          denomination: denomination,
+          qauntity: quantity,
+        });
+      }
+
+      function addDividend(
+        networkId,
+        denomination,
+        quantity,
+        divisible = Boolean,
+        style
+      ) {
+        networks[networkId].dividends.push({
+          denomination: denomination,
+          quantity: quantity,
+          divisible: divisible,
+          style: style,
+        });
+      }
+
+      /*
+.▄▄ · ▄▄▄▄▄ ▄▄▄· ▄ •▄ ▄▄▄ .
+▐█ ▀. •██  ▐█ ▀█ █▌▄▌▪▀▄.▀·
+▄▀▀▀█▄ ▐█.▪▄█▀▀█ ▐▀▀▄·▐▀▀▪▄
+▐█▄▪▐█ ▐█▌·▐█ ▪▐▌▐█.█▌▐█▄▄▌
+ ▀▀▀▀  ▀▀▀  ▀  ▀ ·▀  ▀ ▀▀▀
+*/
+
+      const stakeChart = d3
+        .pie()
+        .sort(null)
+        .value((d) => d.value);
+
+      const arcGenerator = d3.arc().innerRadius(0).outerRadius(150);
+
+      const colorScale = d3
+        .scaleOrdinal()
+        .domain(Object.keys(networks))
+        .range(Object.values(networks).map((p) => p.style.color));
+
+      function updateStakeChart(svgGroup, networkId) {
+        const data = networks[networkId].stakes.map((s) => ({
+          label: `Stake in ${s.id}`,
+          value: s.value,
+          nestedStake: s.id,
+        }));
+
+        const arcs = stakeChart(data);
+
+        const mainPaths = svgGroup.selectAll("path").data(arcs);
+        mainPaths
+          .enter()
+          .append("path")
+          .merge(mainPaths)
+          .attr("d", arcGenerator)
+          .attr("fill", (d) => colorScale(d.data.nestedStake));
+        mainPaths.exit().remove();
+
+        updateNestedCharts(svgGroup, arcs);
+      }
+
+      /*
+ ▄▄ • ▄▄▄   ▄▄▄·  ▄▄▄· ▄ .▄
+▐█ ▀ ▪▀▄ █·▐█ ▀█ ▐█ ▄███▪▐█
+▄█ ▀█▄▐▀▀▄ ▄█▀▀█  ██▀·██▀▐█
+▐█▄▪▐█▐█•█▌▐█ ▪▐▌▐█▪·•██▌▐▀
+·▀▀▀▀ .▀  ▀ ▀  ▀ .▀   ▀▀▀ ·
+*/
+
+      function updateGraph(link, node) {
+        let newgraphData = generateGraphData();
+
+        let linkSelection = link.data(newgraphData.links);
+
+        linkSelection
+          .enter()
+          .append("path")
+          .merge(link)
+          .attr("stroke-width", (d) => d.value);
+
+        linkSelection.exit().remove();
+
+        let nodeSelection = node.data(newgraphData.nodes);
+
+        nodeSelection.enter().append("g").merge(node);
+
+        nodeSelection.exit().remove();
+
+        Object.keys(networks).forEach((networkId) => {
+          const svgGroup = svgGroups[networkId];
+          updateStakeChart(svgGroup, networkId);
+        });
+      }
+
+      function updateNestedCharts(svgGroup, arcs) {
+        arcs.forEach((arc) => {
+          const nestedData = networks[arc.data.nestedStake].stakes.map((s) => ({
+            label: `Stake in ${s.id}`,
+            value: s.value,
+          }));
+
+          const angle = arc.endAngle - arc.startAngle;
+          const nestedRadius = (150 / 4) * Math.sqrt((2 * angle) / Math.PI);
+
+          const nestedArcGenerator = d3
+            .arc()
+            .innerRadius(0)
+            .outerRadius(nestedRadius);
+
+          const nestedSvgGroup = svgGroup
+            .append("g")
+            .attr("transform", `translate(${arcGenerator.centroid(arc)})`);
+
+          const nestedArcs = stakeChart(nestedData);
+          const nestedPaths = nestedSvgGroup.selectAll("path").data(nestedArcs);
+          nestedPaths
+            .enter()
+            .append("path")
+            .merge(nestedPaths)
+            .attr("d", nestedArcGenerator)
+            .attr("fill", (d) => colorScale(d.data.label.split(" ")[2]));
+          nestedPaths.exit().remove();
+        });
+      }
+
+      function createNetworkGraph() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        let graphData = generateGraphData();
+
+        const svg = d3
+          .select("body")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
+
+        const generateLinkPath = (s, t) => {
+          return `M${s.x},${s.y} L${t.x},${t.y}`;
+        };
+
+        const link = svg
+          .append("g")
+          .attr("class", "links")
+          .selectAll("path")
+          .data(graphData.links)
+          .enter()
+          .append("path")
+          .attr("id", (_, i) => `link-${i}`)
+          .attr("stroke", "black")
+          .attr("stroke-opacity", 0.6)
+          .attr("stroke-width", (d) => d.value)
+          .attr("fill", "none");
+
+        const dividend = svg
+          .append("g")
+          .attr("class", "dividends")
+          .selectAll("circle")
+          .data(
+            graphData.links.flatMap((link) =>
+              networks[link.source].dividends.map((dividend) => ({
+                source: link.source,
+                target: dividend.id,
+              }))
+            )
+          )
+          .enter()
+          .append("circle")
+          .attr("cx", (d) => d.source.x) // Set initial x position
+          .attr("cy", (d) => d.source.y) // Set initial y position
+          .attr("r", 10)
+          .each(function (d, i) {
+            d3.select(this)
+              .append("animateMotion")
+              .attr("dur", "5s")
+              .attr("repeatCount", "indefinite")
+              .attr("begin", `${(i / graphData.links.length) * 5}s`)
+              .append("mpath")
+              .attr("href", `#link-${i}`);
+          });
+
+        dividend.attr("fill", (d) => {
+          const sourceNetwork = networks[d.source];
+          const dividendIndex = sourceNetwork.dividends.findIndex(
+            (dividend) => dividend.id === d.target
+          );
+          return sourceNetwork.dividends[dividendIndex].style.color;
+        });
+        const node = svg
+          .append("g")
+          .attr("class", "nodes")
+          .selectAll("g")
+          .data(graphData.nodes)
+          .enter()
+          .append("g");
+
+        node.each(function (d) {
+          const networkId = d.id;
+          const svgGroup = d3
+            .select(this)
+            .append("svg")
+            .attr("width", 400)
+            .attr("height", 400)
+            .append("g")
+            .attr("transform", "translate(200, 200)");
+          svgGroups[networkId] = svgGroup; // Store the svg group
+          updateStakeChart(svgGroup, networkId);
+
+          // Add the label inside the circle
+          svgGroup
+            .append("text")
+            .attr("x", 0)
+            .attr("y", 170)
+            .text(networkId)
+            .style("font-size", "23px")
+            .style("text-anchor", "middle")
+            .style("alignment-baseline", "middle");
+
+          // Append a circle around the pie chart
+          svgGroup
+            .append("circle")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", 190)
+            .attr("fill", "none")
+            .attr("stroke", d.style.color)
+            .attr("stroke-width", 5);
+
+          // Create a slider for each stake
+          networks[networkId].stakes.forEach((stake, i) => {
+            svgGroup
+              .append("foreignObject")
+              .attr("x", -50) // Adjust these values to position the slider
+              .attr("y", -200 + i * 30) // This positions the sliders vertically in a list
+              .attr("width", 200)
+              .attr("height", 25)
+              .html(
+                `<div class="slider"><input type="range" min="0" max="100" value="${stake.value}" id="slider-${networkId}-${stake.id}"><label for="slider-${networkId}-${stake.id}">Stake in ${stake.id}</label></div>`
+              );
+          });
+        });
+
+        d3.selectAll(".slider input").on("input", function () {
+          const [networkId, stakeId] = this.id.split("-").slice(1);
+          const value = +this.value;
+
+          const stake = networks[networkId].stakes.find(
+            (s) => s.id === stakeId
+          );
+          stake.value = value;
+          updateGraph(link, node);
+        });
+
+        // Create SVG Buttons
+
+        let slidersVisible = true;
+        // Button for hiding all sliders
+        const toggleSlidersButton = svg
+          .append("circle")
+          .attr("cx", 30)
+          .attr("cy", height - 30)
+          .attr("r", 20)
+          .attr("fill", "#000000")
+          .style("cursor", "pointer")
+          .on("click", function () {
+            // Toggle all sliders
+            if (slidersVisible) {
+              d3.selectAll(".slider").style("display", "none");
+            } else {
+              d3.selectAll(".slider").style("display", "block");
+            }
+            slidersVisible = !slidersVisible;
+          });
+
+        let namesVisible = true;
+        // Button for hiding all sliders
+        const toggleNameButton = svg
+          .append("circle")
+          .attr("cx", 110)
+          .attr("cy", height - 30)
+          .attr("r", 20)
+          .attr("fill", "#000000")
+          .style("cursor", "pointer")
+          .on("click", function () {
+            // Toggle all sliders
+            if (namesVisible) {
+              d3.selectAll(".text").style("display", "none");
+            } else {
+              d3.selectAll(".text").style("display", "block");
+            }
+            namesVisible = !namesVisible;
+          });
+
+        // Button for creating new networks/nodes
+        const addNetworkButton = svg
+          .append("circle")
+          .attr("cx", 70)
+          .attr("cy", height - 30)
+          .attr("r", 20)
+          .attr("fill", "#000000")
+          .style("cursor", "pointer")
+          .on("click", function () {
+            // Code to create new networks/nodes
+            // This is a placeholder and needs to be replaced with actual functionality
+            // For example, you could call addNetwork function with appropriate parameters
+            addNetwork("ExampleID");
+            updateGraph(link, node);
+          });
+
+        const simulation = d3
+          .forceSimulation(graphData.nodes)
+          .force(
+            "link",
+            d3
+              .forceLink(graphData.links)
+              .id((d) => d.id)
+              .distance((d) => (d.type === "dividend" ? 100 : 500))
+          )
+          .force("charge", d3.forceManyBody().strength(150))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("collision", d3.forceCollide().radius(200)); // Collision force added
+
+        simulation.nodes(graphData.nodes).on("tick", ticked);
+
+        simulation.force("link").links(graphData.links);
+
+        function ticked() {
+          link.attr("d", (d) => generateLinkPath(d.source, d.target));
+          node
+            .selectAll("svg")
+            .attr("x", (d) => d.x - 200)
+            .attr("y", (d) => d.y - 200);
+        }
+      }
+
+      createNetworkGraph();
+    </script>
+  </body>
+</html>
